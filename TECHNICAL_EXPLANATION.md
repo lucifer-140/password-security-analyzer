@@ -4,30 +4,46 @@ This document provides a deep dive into the technical architecture, security alg
 
 ## 1. Architecture Overview
 
-The application is a **Single Page Application (SPA)** built with **React** and **Vite**. It follows a component-based architecture, emphasizing modularity and separation of concerns.
+The application is a **Client-Side Single Page Application (SPA)** built with **React** and **Vite**. It implements a strict **Model-View-Controller (MVC)** architectural pattern to ensure separation of concerns, maintainability, and testability.
+
+### Architectural Style: MVC (Model-View-Controller)
+
+We have refactored the standard React component structure into a clear MVC pattern:
+
+1.  **Model (Logic Layer)**:
+    *   **Responsibility**: Encapsulates all business logic, data processing, and mathematical calculations.
+    *   **Characteristics**: Pure JavaScript (no React dependencies), stateless, easily testable.
+    *   **Location**: `src/models/PasswordModel.js`
+
+2.  **View (Presentation Layer)**:
+    *   **Responsibility**: Renders the User Interface (UI) based on the data provided by the Controller.
+    *   **Characteristics**: "Dumb" components, handles layout, styling (Tailwind), and animations (Framer Motion).
+    *   **Location**: `src/components/PasswordAnalyzer.jsx`
+
+3.  **Controller (State Layer)**:
+    *   **Responsibility**: Manages application state, handles user input, and orchestrates communication between the Model and View.
+    *   **Characteristics**: Custom React Hooks, manages side effects (localStorage, Confetti).
+    *   **Location**: `src/controllers/usePasswordController.js`
 
 ### Directory Structure
 ```
 src/
-├── components/
-│   ├── PasswordAnalyzer.jsx  # Core analysis logic & UI
-│   └── PasswordGenerator.jsx # Password generation utility
-├── App.jsx                   # Root component & Theme context
-├── index.css                 # Global styles & Tailwind directives
-└── main.jsx                  # Entry point
+├── components/           # VIEW Layer
+│   ├── PasswordAnalyzer.jsx
+│   └── PasswordGenerator.jsx
+├── controllers/          # CONTROLLER Layer
+│   └── usePasswordController.js
+├── models/               # MODEL Layer
+│   └── PasswordModel.js
+├── App.jsx
+├── index.css
+└── main.jsx
 ```
-
-### State Management
-- **Local State**: We use React's `useState` for managing immediate UI state (input values, current analysis results, active tabs).
-- **Effect Hooks**: `useEffect` is used for:
-  - **Debouncing**: Delaying the analysis and HIBP API calls to prevent performance bottlenecks during typing.
-  - **Persistence**: Saving/loading password history to/from `localStorage`.
-  - **Theme**: Applying the `dark` class to the HTML root based on user preference.
 
 ## 2. Security Algorithms
 
 ### A. Entropy Calculation
-We use **Information Entropy** (measured in bits) as the primary metric for password strength, rather than just length. The formula used is:
+We use **Information Entropy** (measured in bits) as the primary metric for password strength. The formula used is:
 
 $$ E = L \times \log_2(R) $$
 
@@ -36,38 +52,35 @@ Where:
 - $L$ = Password Length
 - $R$ = Size of the pool of unique characters used (e.g., 26 for lowercase, 62 for alphanumeric).
 
-**Implementation:**
+**Implementation (in `PasswordModel.js`):**
 ```javascript
-const calculateEntropy = (pwd) => {
+calculateEntropy(pwd) {
   let charSet = 0;
   if (/[a-z]/.test(pwd)) charSet += 26;
   if (/[A-Z]/.test(pwd)) charSet += 26;
   if (/[0-9]/.test(pwd)) charSet += 10;
   if (/[^a-zA-Z0-9]/.test(pwd)) charSet += 32;
   return charSet > 0 ? pwd.length * Math.log2(charSet) : 0;
-};
+}
 ```
 
-### B. "Have I Been Pwned" (HIBP) Integration
-To check if a password has been compromised without exposing it, we implement the **k-anonymity** model:
+### B. Privacy & Offline Mode
+**Important Change in v2.0**: The "Have I Been Pwned" (HIBP) API integration has been **removed** to create a 100% offline, zero-trust environment.
 
-1.  **Hashing**: The password is hashed using **SHA-1** via the browser's `crypto.subtle` API.
-2.  **Prefixing**: We extract the first **5 characters** of the hex-encoded hash.
-3.  **Querying**: We send a GET request to `https://api.pwnedpasswords.com/range/{prefix}`.
-4.  **Matching**: The API returns a list of suffixes (the rest of the hash) that match that prefix. We search this list locally for our password's hash suffix.
-
-**Why this is secure:** The API never sees the full hash, and we never see the full list of breached passwords. The "anonymity set" (the response list) is large enough that the server cannot infer which specific password we are checking.
+*   **No Network Requests**: The application makes absolutely no external HTTP requests.
+*   **Local Processing**: All analysis happens in the user's browser memory.
+*   **Data Persistence**: Password history is stored in `localStorage` and never leaves the device.
 
 ## 3. UI/UX Design System
 
 ### Styling Strategy
 - **Tailwind CSS**: Used for utility-first styling, enabling rapid development and consistent design tokens.
-- **Dark Mode**: Implemented using the `class` strategy. Colors are defined with `slate` scales (`slate-50` to `slate-950`) to ensure high contrast and reduced eye strain.
+- **Dark Mode**: Implemented using the `class` strategy. Colors are defined with `slate` scales (`slate-50` to `slate-950`) to ensure high contrast.
 - **Glassmorphism**: Achieved using `backdrop-blur`, semi-transparent backgrounds (`bg-white/60`), and subtle borders (`border-white/20`).
 
 ### Animations
-- **Framer Motion**: Handles complex layout transitions (e.g., switching tabs, expanding sections) and micro-interactions (progress bars filling up).
-- **Canvas Confetti**: A lightweight particle system triggered programmatically when the security score hits a threshold (≥90).
+- **Framer Motion**: Handles complex layout transitions (e.g., switching tabs, expanding sections) and micro-interactions.
+- **Canvas Confetti**: A lightweight particle system triggered by the Controller when the Model reports a high security score.
 
 ## 4. Report Generation
 We use a client-side rendering approach to generate PDF reports:
@@ -75,9 +88,7 @@ We use a client-side rendering approach to generate PDF reports:
 2.  **Process**: The canvas data is converted to a PNG image.
 3.  **PDF Creation**: `jsPDF` embeds this image into a standard A4 PDF document.
 
-This approach ensures the report looks exactly like the UI, preserving all charts and visual formatting.
-
 ## 5. Future Roadmap
-- [ ] **Offline Mode**: PWA (Progressive Web App) support for offline analysis.
-- [ ] **Custom Dictionaries**: Allow users to check against organization-specific banned word lists.
-- [ ] **Password Strength Meter v2**: Incorporate `zxcvbn` library for even more advanced linguistic pattern matching.
+- [ ] **PWA Support**: Make the app installable on mobile devices.
+- [ ] **Custom Dictionaries**: Allow users to import their own banned word lists.
+- [ ] **zxcvbn Integration**: Incorporate Dropbox's advanced pattern matching library for even deeper analysis.
