@@ -4,55 +4,51 @@ This document provides a deep dive into the technical architecture, security alg
 
 ## 1. Architecture Overview
 
-The application is a **Client-Side Single Page Application (SPA)** built with **React** and **Vite**. It implements a strict **Model-View-Controller (MVC)** architectural pattern to ensure separation of concerns, maintainability, and testability.
+The application is a **Client-Side Single Page Application (SPA)** built with **React** and **Vite**. It follows a strict **Layered Architecture** to ensure separation of concerns, maintainability, and testability.
 
-### Architectural Style: MVC (Model-View-Controller)
+### Architectural Style: Layered Architecture
 
-We have refactored the standard React component structure into a clear MVC pattern:
-
-1.  **Model (Logic Layer)**:
-    *   **Responsibility**: Encapsulates all business logic, data processing, and mathematical calculations.
-    *   **Characteristics**: Pure JavaScript (no React dependencies), stateless, easily testable.
-    *   **Location**: `src/models/PasswordModel.js`
-
-2.  **View (Presentation Layer)**:
-    *   **Responsibility**: Renders the User Interface (UI) based on the data provided by the Controller.
-    *   **Characteristics**: "Dumb" components, handles layout, styling (Tailwind), and animations (Framer Motion).
-    *   **Location**: `src/components/PasswordAnalyzer.jsx`
-
-3.  **Controller (State Layer)**:
-    *   **Responsibility**: Manages application state, handles user input, and orchestrates communication between the Model and View.
-    *   **Characteristics**: Custom React Hooks, manages side effects (localStorage, Confetti).
-    *   **Location**: `src/controllers/usePasswordController.js`
-
-### Layered Architecture Perspective
-
-While MVC defines the *interaction* pattern, this application also follows a **Layered Architecture** (Separation of Concerns) where each layer has a specific responsibility and only communicates with the layer directly below or above it.
+The application is organized into three distinct horizontal layers. Each layer has a specific responsibility and only communicates with the layers directly adjacent to it.
 
 1.  **Presentation Layer (UI)**
+    *   **Role**: Responsible for what the user **sees** and interacts with. It is "dumb" and passive—it only displays data provided by the Business Logic layer and delegates user actions to it.
     *   **Components**: `PasswordAnalyzer.jsx`, `PasswordGenerator.jsx`
-    *   **Role**: Handles what the user *sees*. It is passive and only displays data provided by the Application Layer.
-    *   **Corresponds to**: **View** in MVC.
 
-2.  **Application/Business Logic Layer**
+2.  **Business Logic Layer (Application)**
+    *   **Role**: The "brain" of the application. It orchestrates the application flow, processes user commands, executes domain logic (math, validation), and manages state.
     *   **Components**: `usePasswordController.js` (Orchestration), `PasswordModel.js` (Domain Logic)
-    *   **Role**: Handles what the application *does*. It processes user commands, makes decisions based on the domain logic, and manages the flow of data.
-    *   **Corresponds to**: **Controller** + **Model** in MVC.
 
 3.  **Data Persistence Layer**
-    *   **Components**: `localStorage` API
-    *   **Role**: Handles where the data *lives*. In this offline-first architecture, the browser's local storage acts as our database.
-    *   **Corresponds to**: The data source managed by the Controller.
+    *   **Role**: Responsible for where the data **lives**. In this offline-first architecture, it abstracts the storage mechanism.
+    *   **Components**: Browser's `localStorage` API.
+
+---
+
+### Implementation Pattern: MVC (Model-View-Controller)
+
+To implement this layered structure efficiently within the React ecosystem, we utilize the **MVC** pattern. Here is how the layers map to MVC components:
+
+*   **View (Presentation Layer)**:
+    *   **File**: `src/components/PasswordAnalyzer.jsx`
+    *   **Function**: Renders the UI using Tailwind CSS and Framer Motion. It receives state and event handlers from the Controller.
+
+*   **Controller (Business Logic Layer)**:
+    *   **File**: `src/controllers/usePasswordController.js`
+    *   **Function**: A custom React Hook that acts as the glue. It manages the application state (`useState`), handles side effects (like saving to the Data Layer), and calls the Model for calculations.
+
+*   **Model (Business Logic Layer)**:
+    *   **File**: `src/models/PasswordModel.js`
+    *   **Function**: A pure JavaScript class containing the core domain logic (entropy calculation, regex checks). It has no dependency on React or the UI.
 
 ### Directory Structure
 ```
 src/
-├── components/           # VIEW Layer
+├── components/           # PRESENTATION Layer (View)
 │   ├── PasswordAnalyzer.jsx
 │   └── PasswordGenerator.jsx
-├── controllers/          # CONTROLLER Layer
+├── controllers/          # BUSINESS LOGIC Layer (Controller)
 │   └── usePasswordController.js
-├── models/               # MODEL Layer
+├── models/               # BUSINESS LOGIC Layer (Model)
 │   └── PasswordModel.js
 ├── App.jsx
 ├── index.css
