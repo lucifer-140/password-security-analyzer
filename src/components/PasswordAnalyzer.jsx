@@ -1,10 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Eye, EyeOff, Shield, AlertTriangle, CheckCircle, Copy, Check, History, Trash2, Download, Info, AlertOctagon } from 'lucide-react';
+import React from 'react';
+import { Eye, EyeOff, Shield, AlertTriangle, CheckCircle, Copy, Check, History, Trash2, Download, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import PasswordGenerator from './PasswordGenerator';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
-import confetti from 'canvas-confetti';
+import { usePasswordController } from '../controllers/usePasswordController';
 
 const Tooltip = ({ text }) => (
     <div className="group relative inline-block ml-2">
@@ -17,236 +15,9 @@ const Tooltip = ({ text }) => (
 );
 
 const PasswordAnalyzer = ({ darkMode }) => {
-    const [password, setPassword] = useState('');
-    const [showPassword, setShowPassword] = useState(false);
-    const [analysis, setAnalysis] = useState(null);
-    const [activeTab, setActiveTab] = useState('analyze');
-    const [copied, setCopied] = useState(false);
-    const [history, setHistory] = useState([]);
-    const [pwnedCount, setPwnedCount] = useState(null);
-    const [isCheckingPwned, setIsCheckingPwned] = useState(false);
-    const reportRef = useRef(null);
-
-    const commonPasswords = new Set([
-        'password', '123456', 'password123', 'admin', 'qwerty',
-        'letmein', 'welcome', 'monkey', '123456789', '12345678',
-        '12345', '1234567', '1234567890', 'abc123', 'password1'
-    ]);
-
-    useEffect(() => {
-        const savedHistory = localStorage.getItem('passwordHistory');
-        if (savedHistory) {
-            setHistory(JSON.parse(savedHistory));
-        }
-    }, []);
-
-    const triggerConfetti = () => {
-        const count = 200;
-        const defaults = {
-            origin: { y: 0.7 }
-        };
-
-        function fire(particleRatio, opts) {
-            confetti({
-                ...defaults,
-                ...opts,
-                particleCount: Math.floor(count * particleRatio)
-            });
-        }
-
-        fire(0.25, { spread: 26, startVelocity: 55 });
-        fire(0.2, { spread: 60 });
-        fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8 });
-        fire(0.1, { spread: 120, startVelocity: 25, decay: 0.92, scalar: 1.2 });
-        fire(0.1, { spread: 120, startVelocity: 45 });
-    };
-
-    const checkPwnedPassword = async (pwd) => {
-        if (!pwd) {
-            setPwnedCount(null);
-            return;
-        }
-
-        setIsCheckingPwned(true);
-        try {
-            const encoder = new TextEncoder();
-            const data = encoder.encode(pwd);
-            const hashBuffer = await crypto.subtle.digest('SHA-1', data);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
-
-            const prefix = hashHex.substring(0, 5);
-            const suffix = hashHex.substring(5);
-
-            const response = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`);
-            const text = await response.text();
-
-            const match = text.split('\n').find(line => line.startsWith(suffix));
-            if (match) {
-                setPwnedCount(parseInt(match.split(':')[1]));
-            } else {
-                setPwnedCount(0);
-            }
-        } catch (error) {
-            console.error("Error checking pwned password:", error);
-            setPwnedCount(null);
-        } finally {
-            setIsCheckingPwned(false);
-        }
-    };
-
-    useEffect(() => {
-        const timeoutId = setTimeout(() => {
-            if (password) {
-                checkPwnedPassword(password);
-            } else {
-                setPwnedCount(null);
-            }
-        }, 1000);
-
-        return () => clearTimeout(timeoutId);
-    }, [password]);
-
-    const addToHistory = (pwd, score, strength, color) => {
-        if (!pwd) return;
-        const newEntry = {
-            id: Date.now(),
-            password: pwd,
-            score,
-            strength,
-            color,
-            timestamp: new Date().toISOString()
-        };
-
-        const updatedHistory = [newEntry, ...history].slice(0, 10);
-        setHistory(updatedHistory);
-        localStorage.setItem('passwordHistory', JSON.stringify(updatedHistory));
-    };
-
-    const clearHistory = () => {
-        setHistory([]);
-        localStorage.removeItem('passwordHistory');
-    };
-
-    const calculateEntropy = (pwd) => {
-        let charSet = 0;
-        if (/[a-z]/.test(pwd)) charSet += 26;
-        if (/[A-Z]/.test(pwd)) charSet += 26;
-        if (/[0-9]/.test(pwd)) charSet += 10;
-        if (/[^a-zA-Z0-9]/.test(pwd)) charSet += 32;
-        return charSet > 0 ? pwd.length * Math.log2(charSet) : 0;
-    };
-
-    const analyzePassword = (pwd) => {
-        if (!pwd) return null;
-
-        const checks = {
-            length: pwd.length >= 12,
-            lowercase: /[a-z]/.test(pwd),
-            uppercase: /[A-Z]/.test(pwd),
-            number: /[0-9]/.test(pwd),
-            special: /[^a-zA-Z0-9]/.test(pwd)
-        };
-
-        const hasSequential = /(?:abc|bcd|cde|123|234|345|456|567|678|789)/i.test(pwd);
-        const hasRepeated = /(.)\1{2,}/.test(pwd);
-        const hasKeyboard = /qwerty|asdfgh|zxcvbn/i.test(pwd);
-        const isCommon = commonPasswords.has(pwd.toLowerCase());
-
-        const entropy = calculateEntropy(pwd);
-        const complexityScore = Object.values(checks).filter(Boolean).length;
-
-        let score = 0;
-        score += Math.min(pwd.length / 16, 1) * 30;
-        score += (complexityScore / 5) * 30;
-        score += isCommon ? 0 : 20;
-        score += (hasSequential || hasRepeated || hasKeyboard) ? 0 : 10;
-        score += Math.min(entropy / 80, 1) * 10;
-
-        let strength = 'Sangat Lemah';
-        let color = '#ef4444';
-        if (score >= 90) {
-            strength = 'Sangat Kuat';
-            color = '#3b82f6';
-        } else if (score >= 75) {
-            strength = 'Kuat';
-            color = '#10b981';
-        } else if (score >= 50) {
-            strength = 'Sedang';
-            color = '#f59e0b';
-        } else if (score >= 25) {
-            strength = 'Lemah';
-            color = '#f97316';
-        }
-
-        const warnings = [];
-        if (pwd.length < 12) warnings.push('Password terlalu pendek (minimal 12 karakter)');
-        if (!checks.uppercase) warnings.push('Tambahkan huruf KAPITAL');
-        if (!checks.special) warnings.push('Tambahkan karakter spesial (!@#$%)');
-
-        const crackTimes = {
-            'BF 10^6 ops/sec': Math.pow(2, entropy) / 1e6,
-            'BF 10^9 ops/sec': Math.pow(2, entropy) / 1e9,
-            'BF 10^12 ops/sec': Math.pow(2, entropy) / 1e12,
-            'BF 10^15 ops/sec': Math.pow(2, entropy) / 1e15,
-        };
-
-        const recommendations = [
-            'Panjangkan passwordmu menjadi minimal 12 karakter',
-            'Gunakan kombinasi huruf besar, kecil, angka, dan simbol',
-            'Gunakan frasa sandi (passphrase) yang mudah diingat tapi sulit ditebak',
-            'Jangan gunakan informasi pribadi seperti nama atau tanggal lahir',
-            'Gunakan password manager untuk menyimpan password yang kuat dan unik',
-            'Aktifkan autentikasi dua faktor (2FA) dimana pun tersedia',
-            'Jangan gunakan ulang password untuk akun yang berbeda'
-        ];
-
-        const metrics = {
-            'Panjang': Math.min((pwd.length / 16) * 100, 100),
-            'Kompleksitas': (complexityScore / 5) * 100,
-            'Keunikan': isCommon ? 0 : 100,
-            'Entropi': Math.min((entropy / 80) * 100, 100),
-            'Pola': (hasSequential || hasRepeated || hasKeyboard) ? 50 : 100
-        };
-
-        return {
-            score: Math.round(score),
-            strength,
-            color,
-            checks,
-            warnings,
-            entropy: entropy.toFixed(1),
-            crackTimes,
-            recommendations,
-            metrics,
-            isCommon
-        };
-    };
-
-    useEffect(() => {
-        const result = analyzePassword(password);
-        setAnalysis(result);
-
-        // Trigger confetti if score is high and it's a new analysis
-        if (result && result.score >= 90 && password.length > 0) {
-            // Simple debounce to prevent spamming confetti while typing
-            const timeout = setTimeout(() => {
-                triggerConfetti();
-            }, 500);
-            return () => clearTimeout(timeout);
-        }
-
-        const timeoutId = setTimeout(() => {
-            if (result && password.length > 0) {
-                const lastEntry = history[0];
-                if (!lastEntry || lastEntry.password !== password) {
-                    addToHistory(password, result.score, result.strength, result.color);
-                }
-            }
-        }, 1000);
-
-        return () => clearTimeout(timeoutId);
-    }, [password]);
+    const { state, actions } = usePasswordController(darkMode);
+    const { password, showPassword, analysis, activeTab, copied, history, reportRef } = state;
+    const { setPassword, setShowPassword, setActiveTab, handleCopy, handleDownloadReport, clearHistory } = actions;
 
     const formatTime = (seconds) => {
         if (seconds < 1) return '< 1 detik';
@@ -256,33 +27,6 @@ const PasswordAnalyzer = ({ darkMode }) => {
         if (seconds < 31536000) return `${(seconds / 86400).toFixed(1)} hari`;
         if (seconds < 31536000000) return `${(seconds / 31536000).toFixed(1)} tahun`;
         return '> 1000 tahun';
-    };
-
-    const handleCopy = () => {
-        navigator.clipboard.writeText(password);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-    };
-
-    const handleDownloadReport = async () => {
-        if (!reportRef.current) return;
-
-        try {
-            const canvas = await html2canvas(reportRef.current, {
-                backgroundColor: darkMode ? '#020617' : '#ffffff',
-                scale: 2
-            });
-
-            const imgData = canvas.toDataURL('image/png');
-            const pdf = new jsPDF('p', 'mm', 'a4');
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-
-            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-            pdf.save('password-security-report.pdf');
-        } catch (error) {
-            console.error("Error generating PDF:", error);
-        }
     };
 
     return (
@@ -319,8 +63,8 @@ const PasswordAnalyzer = ({ darkMode }) => {
                 <button
                     onClick={() => setActiveTab('analyze')}
                     className={`px-6 py-2.5 rounded-lg transition-all duration-200 font-medium text-sm ${activeTab === 'analyze'
-                            ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm'
-                            : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                        ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm'
+                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                         }`}
                 >
                     Analisis Password
@@ -328,8 +72,8 @@ const PasswordAnalyzer = ({ darkMode }) => {
                 <button
                     onClick={() => setActiveTab('generate')}
                     className={`px-6 py-2.5 rounded-lg transition-all duration-200 font-medium text-sm ${activeTab === 'generate'
-                            ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm'
-                            : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                        ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm'
+                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                         }`}
                 >
                     Generator Password
@@ -382,52 +126,6 @@ const PasswordAnalyzer = ({ darkMode }) => {
 
                         {analysis && (
                             <>
-                                {/* HIBP Check Result */}
-                                {password.length > 0 && (
-                                    <motion.div
-                                        initial={{ opacity: 0, height: 0 }}
-                                        animate={{ opacity: 1, height: 'auto' }}
-                                        className={`mb-8 rounded-xl p-5 border-l-4 shadow-sm ${isCheckingPwned
-                                                ? 'bg-slate-50 dark:bg-slate-800/50 border-l-slate-400 border-y border-r border-slate-200 dark:border-slate-700'
-                                                : pwnedCount === null
-                                                    ? 'hidden'
-                                                    : pwnedCount > 0
-                                                        ? 'bg-red-50 dark:bg-red-950/30 border-l-red-500 border-y border-r border-red-100 dark:border-red-900/50'
-                                                        : 'bg-green-50 dark:bg-green-950/30 border-l-green-500 border-y border-r border-green-100 dark:border-green-900/50'
-                                            }`}
-                                    >
-                                        <div className="flex items-center gap-4">
-                                            {isCheckingPwned ? (
-                                                <div className="w-6 h-6 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
-                                            ) : pwnedCount > 0 ? (
-                                                <div className="p-2 bg-red-100 dark:bg-red-900/50 rounded-full">
-                                                    <AlertOctagon className="w-6 h-6 text-red-600 dark:text-red-400" />
-                                                </div>
-                                            ) : (
-                                                <div className="p-2 bg-green-100 dark:bg-green-900/50 rounded-full">
-                                                    <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
-                                                </div>
-                                            )}
-
-                                            <div>
-                                                <h3 className={`font-semibold text-lg ${pwnedCount > 0 ? 'text-red-900 dark:text-red-200' : 'text-green-900 dark:text-green-200'
-                                                    }`}>
-                                                    {isCheckingPwned ? 'Memeriksa database kebocoran...' :
-                                                        pwnedCount > 0 ? 'Password ini pernah bocor!' : 'Password ini belum pernah bocor'}
-                                                </h3>
-                                                {!isCheckingPwned && (
-                                                    <p className={`text-sm mt-1 ${pwnedCount > 0 ? 'text-red-700 dark:text-red-400' : 'text-green-700 dark:text-green-400'
-                                                        }`}>
-                                                        {pwnedCount > 0
-                                                            ? `Ditemukan ${pwnedCount.toLocaleString()} kali dalam database Have I Been Pwned.`
-                                                            : 'Aman digunakan. Tidak ditemukan dalam database publik.'}
-                                                    </p>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </motion.div>
-                                )}
-
                                 {/* Score Section */}
                                 <motion.div
                                     initial={{ opacity: 0, scale: 0.95 }}

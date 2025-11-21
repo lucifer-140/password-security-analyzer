@@ -11,8 +11,7 @@ A state-of-the-art **Password Security Analyzer** built with React, designed to 
 
 ### 🔒 Advanced Security Analysis
 - **Entropy Calculation**: Uses mathematical information theory to measure the true unpredictability of your password.
-- **Real-World Breach Check**: Integrates with the **Have I Been Pwned (HIBP)** API to check if your password has appeared in known data leaks.
-  - *Privacy First*: Uses **k-anonymity** (SHA-1 hashing) so your actual password is **never** sent to any server.
+- **Real-World Breach Check**: *[Removed in v2.0]* The app is now 100% offline and self-contained.
 - **Comprehensive Checks**: Evaluates length, character variety (uppercase, lowercase, numbers, symbols), and common patterns (keyboard sequences, repetitions).
 - **Crack Time Estimation**: Estimates how long it would take a computer to brute-force your password.
 
@@ -41,7 +40,7 @@ A state-of-the-art **Password Security Analyzer** built with React, designed to 
 
 1.  **Clone the repository**
     ```bash
-    git clone https://github.com/yourusername/password-security-analyzer.git
+    git clone https://github.com/lucifer-140/password-security-analyzer.git
     cd password-security-analyzer
     ```
 
@@ -62,18 +61,18 @@ A state-of-the-art **Password Security Analyzer** built with React, designed to 
 
 ## 🏗️ Tech Stack
 
+- **Architecture**: MVC (Model-View-Controller)
 - **Frontend Framework**: [React](https://reactjs.org/) (via [Vite](https://vitejs.dev/))
 - **Styling**: [Tailwind CSS](https://tailwindcss.com/)
 - **Animations**: [Framer Motion](https://www.framer.com/motion/) & [Canvas Confetti](https://www.npmjs.com/package/canvas-confetti)
 - **Icons**: [Lucide React](https://lucide.dev/)
 - **PDF Generation**: [html2canvas](https://html2canvas.hertzen.com/) & [jsPDF](https://github.com/parallax/jsPDF)
-- **API**: [Have I Been Pwned](https://haveibeenpwned.com/API/v3)
 
 ## 🛡️ Security & Privacy
 
 We take your privacy seriously.
+- **100% Offline**: This application is completely self-contained. No data ever leaves your browser.
 - **Client-Side Only**: All logic, including entropy calculation and pattern matching, runs entirely in your browser.
-- **Zero-Knowledge HIBP Check**: When checking for breaches, we only send the first 5 characters of the SHA-1 hash of your password. The full hash and the password itself **never** leave your device.
 - **Local Storage**: Password history is stored in your browser's `localStorage` and is never transmitted.
 
 ## 🤝 Contributing
