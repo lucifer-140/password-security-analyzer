@@ -25,6 +25,25 @@ We have refactored the standard React component structure into a clear MVC patte
     *   **Characteristics**: Custom React Hooks, manages side effects (localStorage, Confetti).
     *   **Location**: `src/controllers/usePasswordController.js`
 
+### Layered Architecture Perspective
+
+While MVC defines the *interaction* pattern, this application also follows a **Layered Architecture** (Separation of Concerns) where each layer has a specific responsibility and only communicates with the layer directly below or above it.
+
+1.  **Presentation Layer (UI)**
+    *   **Components**: `PasswordAnalyzer.jsx`, `PasswordGenerator.jsx`
+    *   **Role**: Handles what the user *sees*. It is passive and only displays data provided by the Application Layer.
+    *   **Corresponds to**: **View** in MVC.
+
+2.  **Application/Business Logic Layer**
+    *   **Components**: `usePasswordController.js` (Orchestration), `PasswordModel.js` (Domain Logic)
+    *   **Role**: Handles what the application *does*. It processes user commands, makes decisions based on the domain logic, and manages the flow of data.
+    *   **Corresponds to**: **Controller** + **Model** in MVC.
+
+3.  **Data Persistence Layer**
+    *   **Components**: `localStorage` API
+    *   **Role**: Handles where the data *lives*. In this offline-first architecture, the browser's local storage acts as our database.
+    *   **Corresponds to**: The data source managed by the Controller.
+
 ### Directory Structure
 ```
 src/
